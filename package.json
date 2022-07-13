@@ -1,0 +1,38 @@
+{
+  "name": "kdu-property-decorator",
+  "version": "5.1.1-alpha.0",
+  "description": "property decorators for Kdu Component",
+  "main": "lib/kdu-property-decorator.js",
+  "keywords": [
+    "kdu",
+    "typescript",
+    "decorator"
+  ],
+  "author": "NKDuy",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p src/tsconfig.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "devDependencies": {
+    "@types/node": "^7.0.5",
+    "ava": "^0.19.1",
+    "typescript": "^2.4.1",
+    "kdu": "^2.5.13-alpha.0"
+  },
+  "typings": "./lib/kdu-property-decorator.d.ts",
+  "dependencies": {
+    "reflect-metadata": "^0.1.9",
+    "kdu-class-component": "^5.0.0-alpha.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khanhduy1407/kdu-property-decorator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/khanhduy1407/kdu-property-decorator/issues"
+  },
+  "homepage": "https://github.com/khanhduy1407/kdu-property-decorator#readme"
+}
