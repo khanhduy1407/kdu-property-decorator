@@ -1,26 +1,28 @@
-/** kdu-property-decorator verson 5.1.1-alpha.0 MIT LICENSE copyright 2021 NKDuy */
+/** kdu-property-decorator verson 7.0.0 MIT LICENSE copyright 2021 NKDuy */
 
 'use strict'
 import Kdu, { PropOptions, WatchOptions } from 'kdu'
-import Component, { createDecorator } from 'kdu-class-component'
-import 'reflect-metadata'
+import Component, { createDecorator, mixins } from 'kdu-class-component'
+import { InjectKey } from 'kdu/types/options'
 
 export type Constructor = {
-  new (...args: any[]): any
+  new(...args: any[]): any
 }
+
+export { Component, Kdu, mixins as Mixins }
 
 /**
  * decorator of an inject
- * @param key key
+ * @param from key
  * @return PropertyDecorator
  */
-export function Inject(key?: string | symbol): PropertyDecorator {
-  return createDecorator((componentOptions, k) => {
+export function Inject(options?: { from?: InjectKey, default?: any } | InjectKey): PropertyDecorator {
+  return createDecorator((componentOptions, key) => {
     if (typeof componentOptions.inject === 'undefined') {
       componentOptions.inject = {}
     }
     if (!Array.isArray(componentOptions.inject)) {
-      componentOptions.inject[k] = key || k
+      componentOptions.inject[key] = options || key
     }
   })
 }
@@ -49,11 +51,13 @@ export function Provide(key?: string | symbol): PropertyDecorator {
 /**
  * decorator of model
  * @param  event event name
+ * @param options options
  * @return PropertyDecorator
  */
-export function Model(event?: string): PropertyDecorator {
-  return createDecorator((componentOptions, prop) => {
-    componentOptions.model = { prop, event: event || prop }
+export function Model(event?: string, options: (PropOptions | Constructor[] | Constructor) = {}): PropertyDecorator {
+  return createDecorator((componentOptions, k) => {
+    (componentOptions.props || (componentOptions.props = {}) as any)[k] = options
+    componentOptions.model = { prop: k, event: event || k }
   })
 }
 
@@ -63,14 +67,9 @@ export function Model(event?: string): PropertyDecorator {
  * @return PropertyDecorator | void
  */
 export function Prop(options: (PropOptions | Constructor[] | Constructor) = {}): PropertyDecorator {
-  return function (target: Kdu, key: string) {
-    if (!Array.isArray(options) && typeof (options as PropOptions).type === 'undefined') {
-      (options as PropOptions).type = Reflect.getMetadata('design:type', target, key)
-    }
-    createDecorator((componentOptions, k) => {
-      (componentOptions.props || (componentOptions.props = {}) as any)[k] = options
-    })(target, key)
-  }
+  return createDecorator((componentOptions, k) => {
+    (componentOptions.props || (componentOptions.props = {}) as any)[k] = options
+  })
 }
 
 /**
@@ -90,4 +89,22 @@ export function Watch(path: string, options: WatchOptions = {}): MethodDecorator
   })
 }
 
-export { Component, Kdu }
+// Code copied from Kdu/src/shared/util.js
+const hyphenateRE = /\B([A-Z])/g
+const hyphenate = (str: string) => str.replace(hyphenateRE, '-$1').toLowerCase()
+
+/**
+ * decorator of an event-emitter function
+ * @param  event The name of the event
+ * @return MethodDecorator
+ */
+export function Emit(event?: string): MethodDecorator {
+  return function (target: Kdu, key: string, descriptor: any) {
+    key = hyphenate(key)
+    const original = descriptor.value
+    descriptor.value = function emitter(...args: any[]) {
+      if (original.apply(this, args) !== false)
+        this.$emit(event || key, ...args)
+    }
+  }
+}
