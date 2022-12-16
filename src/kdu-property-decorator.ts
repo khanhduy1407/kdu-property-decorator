@@ -1,9 +1,9 @@
-/** kdu-property-decorator verson 7.0.0 MIT LICENSE copyright 2021 NKDuy */
-
+/** kdu-property-decorator verson 8.1.0 MIT LICENSE copyright 2021 NKDuy */
+/// <reference types='reflect-metadata'/>
 'use strict'
 import Kdu, { PropOptions, WatchOptions } from 'kdu'
 import Component, { createDecorator, mixins } from 'kdu-class-component'
-import { InjectKey } from 'kdu/types/options'
+import { InjectKey, WatchHandler } from 'kdu/types/options'
 
 export type Constructor = {
   new(...args: any[]): any
@@ -48,6 +48,17 @@ export function Provide(key?: string | symbol): PropertyDecorator {
   })
 }
 
+/** @see {@link https://github.com/kdujs/kdu-class-component/blob/main/src/reflect.ts} */
+const reflectMetadataIsSupported = typeof Reflect !== 'undefined' && typeof Reflect.getMetadata !== 'undefined'
+
+function applyMetadata(options: (PropOptions | Constructor[] | Constructor), target: Kdu, key: string) {
+  if (reflectMetadataIsSupported) {
+    if (!Array.isArray(options) && typeof options !== 'function' && typeof options.type === 'undefined') {
+      options.type = Reflect.getMetadata('design:type', target, key)
+    }
+  }
+}
+
 /**
  * decorator of model
  * @param  event event name
@@ -55,10 +66,13 @@ export function Provide(key?: string | symbol): PropertyDecorator {
  * @return PropertyDecorator
  */
 export function Model(event?: string, options: (PropOptions | Constructor[] | Constructor) = {}): PropertyDecorator {
-  return createDecorator((componentOptions, k) => {
-    (componentOptions.props || (componentOptions.props = {}) as any)[k] = options
-    componentOptions.model = { prop: k, event: event || k }
-  })
+  return (target: Kdu, key: string) => {
+    applyMetadata(options, target, key)
+    createDecorator((componentOptions, k) => {
+      (componentOptions.props || (componentOptions.props = {}) as any)[k] = options
+      componentOptions.model = { prop: k, event: event || k }
+    })(target, key)
+  }
 }
 
 /**
@@ -67,9 +81,12 @@ export function Model(event?: string, options: (PropOptions | Constructor[] | Co
  * @return PropertyDecorator | void
  */
 export function Prop(options: (PropOptions | Constructor[] | Constructor) = {}): PropertyDecorator {
-  return createDecorator((componentOptions, k) => {
-    (componentOptions.props || (componentOptions.props = {}) as any)[k] = options
-  })
+  return (target: Kdu, key: string) => {
+    applyMetadata(options, target, key)
+    createDecorator((componentOptions, k) => {
+      (componentOptions.props || (componentOptions.props = {}) as any)[k] = options
+    })(target, key)
+  }
 }
 
 /**
@@ -85,7 +102,16 @@ export function Watch(path: string, options: WatchOptions = {}): MethodDecorator
     if (typeof componentOptions.watch !== 'object') {
       componentOptions.watch = Object.create(null)
     }
-    (componentOptions.watch as any)[path] = { handler, deep, immediate }
+
+    const watch: any = componentOptions.watch
+
+    if (typeof watch[path] === 'object' && !Array.isArray(watch[path])) {
+      watch[path] = [watch[path]]
+    } else if (typeof watch[path] === 'undefined') {
+      watch[path] = []
+    }
+
+    watch[path].push({ handler, deep, immediate })
   })
 }
 
@@ -99,12 +125,28 @@ const hyphenate = (str: string) => str.replace(hyphenateRE, '-$1').toLowerCase()
  * @return MethodDecorator
  */
 export function Emit(event?: string): MethodDecorator {
-  return function (target: Kdu, key: string, descriptor: any) {
+  return function (_target: Kdu, key: string, descriptor: any) {
     key = hyphenate(key)
     const original = descriptor.value
     descriptor.value = function emitter(...args: any[]) {
-      if (original.apply(this, args) !== false)
+      const emit = (returnValue: any) => {
+        if (returnValue !== undefined) args.unshift(returnValue)
         this.$emit(event || key, ...args)
+      }
+
+      const returnValue: any = original.apply(this, args)
+
+      if (isPromise(returnValue)) {
+        returnValue.then(returnValue => {
+          emit(returnValue)
+        })
+      } else {
+        emit(returnValue)
+      }
     }
   }
+}
+
+function isPromise(obj: any): obj is Promise<any> {
+  return obj instanceof Promise || (obj && typeof obj.then === 'function')
 }

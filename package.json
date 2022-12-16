@@ -1,6 +1,6 @@
 {
   "name": "kdu-property-decorator",
-  "version": "7.0.0",
+  "version": "8.1.0",
   "description": "property decorators for Kdu Component",
   "main": "lib/kdu-property-decorator.umd.js",
   "module": "lib/kdu-property-decorator.js",
@@ -12,27 +12,27 @@
   "author": "NKDuy",
   "license": "MIT",
   "scripts": {
-    "build": "tsc -p src/tsconfig.json",
-    "build:umd": "rollup -c"
+    "build": "tsc -p src/tsconfig.json && rollup -c"
   },
   "files": [
     "lib"
   ],
   "devDependencies": {
     "@types/node": "^8.0.47",
-    "ava": "^0.23.0",
+    "ava": "^1.2.1",
     "kdu": "^2.5.24",
+    "reflect-metadata": "^0.1.13",
     "rollup": "^0.50.0",
     "rollup-plugin-commonjs": "^8.2.6",
     "rollup-plugin-typescript": "^0.8.1",
     "ts-loader": "^4.3.0",
     "typescript": "^4.7.3",
     "webpack": "^4.8.3",
-    "webpack-cli": "^2.1.3"
+    "webpack-cli": "^3.2.3"
   },
   "typings": "./lib/kdu-property-decorator.d.ts",
   "dependencies": {
-    "kdu-class-component": "^6.2.0"
+    "kdu-class-component": "^7.0.2"
   },
   "repository": {
     "type": "git",
