@@ -14,16 +14,20 @@ npm i -S kdu-property-decorator
 
 ## Usage
 
-There are 7 decorators and 1 function (Mixin):
+There are several decorators and 1 function (Mixin):
 
-* [`@Emit`](#Emit)
-* [`@Inject`](#Provide)
-* [`@Model`](#Model)
-* [`@Prop`](#Prop)
-* [`@Provide`](#Provide)
-* [`@Watch`](#Watch)
-* `@Component` (**provided by** `kdu-class-component`)
-* `Mixins` (the helper function named `mixins` **provided by** `kdu-class-component`)
+- [`@Prop`](#Prop)
+- [`@PropSync`](#PropSync)
+- [`@Model`](#Model)
+- [`@Watch`](#Watch)
+- [`@Provide`](#Provide)
+- [`@Inject`](#Provide)
+- [`@ProvideReactive`](#ProvideReactive)
+- [`@InjectReactive`](#ProvideReactive)
+- [`@Emit`](#Emit)
+- [`@Ref`](#Ref)
+- `@Component` (**provided by** `kdu-class-component`)
+- `Mixins` (the helper function named `mixins` **provided by** `kdu-class-component`)
 
 ### <a id="Prop"></a> `@Prop(options: (PropOptions | Constructor[] | Constructor) = {})` decorator
 
@@ -32,9 +36,9 @@ import { Kdu, Component, Prop } from 'kdu-property-decorator'
 
 @Component
 export default class YourComponent extends Kdu {
-  @Prop(Number) readonly propA!: number
+  @Prop(Number) readonly propA: number | undefined
   @Prop({ default: 'default value' }) readonly propB!: string
-  @Prop([String, Boolean]) readonly propC!: string | boolean
+  @Prop([String, Boolean]) readonly propC: string | boolean | undefined
 }
 ```
 
@@ -51,7 +55,7 @@ export default {
     },
     propC: {
       type: [String, Boolean]
-    },
+    }
   }
 }
 ```
@@ -65,7 +69,42 @@ export default {
 
 ## Each prop's default value need to be defined as same as the example code shown in above.
 
-It's **not** supported to define each `default` property like `@Prop() prop = 'default value` .
+It's **not** supported to define each `default` property like `@Prop() prop = 'default value'` .
+
+### <a id="PropSync"></a> `@PropSync(propName: string, options: (PropOptions | Constructor[] | Constructor) = {})` decorator
+
+```ts
+import { Kdu, Component, PropSync } from 'kdu-property-decorator'
+
+@Component
+export default class YourComponent extends Kdu {
+  @PropSync('name', { type: String }) syncedName!: string
+}
+```
+
+is equivalent to
+
+```js
+export default {
+  props: {
+    name: {
+      type: String
+    }
+  },
+  computed: {
+    syncedName: {
+      get() {
+        return this.name
+      },
+      set(value) {
+        this.$emit('update:name', value)
+      }
+    }
+  }
+}
+```
+
+Other than that it works just like [`@Prop`](#Prop) other than it takes the propName as an argument of the decorator, in addition to it creates a computed getter and setter behind the scenes. This way you can interface with the property as it was a regular data property whilst making it as easy as appending the `.sync` modifier in the parent component.
 
 ### <a id="Model"></a> `@Model(event?: string, options: (PropOptions | Constructor[] | Constructor) = {})` decorator
 
@@ -89,8 +128,8 @@ export default {
   props: {
     checked: {
       type: Boolean
-    },
-  },
+    }
+  }
 }
 ```
 
@@ -104,13 +143,13 @@ import { Kdu, Component, Watch } from 'kdu-property-decorator'
 @Component
 export default class YourComponent extends Kdu {
   @Watch('child')
-  onChildChanged(val: string, oldVal: string) { }
+  onChildChanged(val: string, oldVal: string) {}
 
   @Watch('person', { immediate: true, deep: true })
-  onPersonChanged1(val: Person, oldVal: Person) { }
+  onPersonChanged1(val: Person, oldVal: Person) {}
 
   @Watch('person')
-  onPersonChanged2(val: Person, oldVal: Person) { }
+  onPersonChanged2(val: Person, oldVal: Person) {}
 }
 ```
 
@@ -119,14 +158,14 @@ is equivalent to
 ```js
 export default {
   watch: {
-    'child': [
+    child: [
       {
         handler: 'onChildChanged',
         immediate: false,
         deep: false
       }
     ],
-    'person': [
+    person: [
       {
         handler: 'onPersonChanged1',
         immediate: true,
@@ -140,10 +179,75 @@ export default {
     ]
   },
   methods: {
-    onChildChanged(val, oldVal) { },
-    onPersonChanged1(val, oldVal) { }
-    onPersonChanged2(val, oldVal) { }
+    onChildChanged(val, oldVal) {},
+    onPersonChanged1(val, oldVal) {},
+    onPersonChanged2(val, oldVal) {}
   }
+}
+```
+
+### <a id="Provide"></a> `@Provide(key?: string | symbol)` / `@Inject(options?: { from?: InjectKey, default?: any } | InjectKey)` decorator
+
+```ts
+import { Component, Inject, Provide, Kdu } from 'kdu-property-decorator'
+
+const symbol = Symbol('baz')
+
+@Component
+export class MyComponent extends Kdu {
+  @Inject() readonly foo!: string
+  @Inject('bar') readonly bar!: string
+  @Inject({ from: 'optional', default: 'default' }) readonly optional!: string
+  @Inject(symbol) readonly baz!: string
+
+  @Provide() foo = 'foo'
+  @Provide('bar') baz = 'bar'
+}
+```
+
+is equivalent to
+
+```js
+const symbol = Symbol('baz')
+
+export const MyComponent = Kdu.extend({
+  inject: {
+    foo: 'foo',
+    bar: 'bar',
+    optional: { from: 'optional', default: 'default' },
+    [symbol]: symbol
+  },
+  data() {
+    return {
+      foo: 'foo',
+      baz: 'bar'
+    }
+  },
+  provide() {
+    return {
+      foo: this.foo,
+      bar: this.baz
+    }
+  }
+})
+```
+
+### <a id="ProvideReactive"></a> `@ProvideReactive(key?: string | symbol)` / `@InjectReactive(options?: { from?: InjectKey, default?: any } | InjectKey)` decorator
+
+These decorators are reactive version of `@Provide` and `@Inject`. If a provided value is modified by parent component, then the child component can catch this modification.
+
+```ts
+const key = Symbol()
+@Component
+class ParentComponent extends Kdu {
+  @ProvideReactive() one = 'value'
+  @ProvideReactive(key) two = 'value'
+}
+
+@Component
+class ChildComponent extends Kdu {
+  @InjectReactive() one!: string
+  @InjectReactive(key) two!: string
 }
 ```
 
@@ -173,6 +277,11 @@ export default class YourComponent extends Kdu {
   @Emit()
   returnValue() {
     return 10
+  }
+
+  @Emit()
+  onInputChange(e) {
+    return e.target.value
   }
 
   @Emit()
@@ -207,6 +316,9 @@ export default {
     returnValue() {
       this.$emit('return-value', 10)
     },
+    onInputChange(e) {
+      this.$emit('on-input-change', e.target.value, e)
+    },
     promise() {
       const promise = new Promise(resolve => {
         setTimeout(() => {
@@ -222,50 +334,37 @@ export default {
 }
 ```
 
-### <a id="Provide"></a> `@Provide(key?: string | symbol)` / `@Inject(options?: { from?: InjectKey, default?: any } | InjectKey)` decorator
+### <a id="Ref"></a> `@Ref(refKey?: string)` decorator
 
 ```ts
-import { Component, Inject, Provide, Kdu } from 'kdu-property-decorator'
+import { Kdu, Component, Ref } from 'kdu-property-decorator'
 
-const symbol = Symbol('baz')
+import AnotherComponent from '@/path/to/another-component.kdu'
 
 @Component
-export class MyComponent extends Kdu {
-  @Inject() readonly foo!: string
-  @Inject('bar') readonly bar!: string
-  @Inject({ from: 'optional', default: 'default' }) readonly optional!: string
-  @Inject(symbol) readonly baz!: string
-
-
-  @Provide() foo = 'foo'
-  @Provide('bar') baz = 'bar'
+export default class YourComponent extends Kdu {
+  @Ref() readonly anotherComponent!: AnotherComponent
+  @Ref('aButton') readonly button!: HTMLButtonElement
 }
 ```
 
 is equivalent to
 
 ```js
-const symbol = Symbol('baz')
-
-export const MyComponent = Kdu.extend({
-
-  inject: {
-    foo: 'foo',
-    bar: 'bar',
-    'optional': { from: 'optional', default: 'default' },
-    [symbol]: symbol
-  },
-  data () {
-    return {
-      foo: 'foo',
-      baz: 'bar'
-    }
-  },
-  provide () {
-    return {
-      foo: this.foo,
-      bar: this.baz
+export default {
+  computed() {
+    anotherComponent: {
+      cache: false,
+      get() {
+        return this.$refs.anotherComponent as AnotherComponent
+      }
+    },
+    button: {
+      cache: false,
+      get() {
+        return this.$refs.aButton as HTMLButtonElement
+      }
     }
   }
-})
+}
 ```

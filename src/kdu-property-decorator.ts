@@ -1,22 +1,27 @@
-/** kdu-property-decorator verson 8.1.0 MIT LICENSE copyright 2021 NKDuy */
+/** kdu-property-decorator verson 8.2.2 MIT LICENSE copyright 2021 NKDuy */
 /// <reference types='reflect-metadata'/>
 'use strict'
 import Kdu, { PropOptions, WatchOptions } from 'kdu'
 import Component, { createDecorator, mixins } from 'kdu-class-component'
-import { InjectKey, WatchHandler } from 'kdu/types/options'
+import { InjectKey } from 'kdu/types/options'
 
 export type Constructor = {
-  new(...args: any[]): any
+  new (...args: any[]): any
 }
 
 export { Component, Kdu, mixins as Mixins }
+
+/** Used for keying reactive provide/inject properties */
+const reactiveInjectKey = '__reactiveInject__'
+
+type InjectOptions = { from?: InjectKey; default?: any }
 
 /**
  * decorator of an inject
  * @param from key
  * @return PropertyDecorator
  */
-export function Inject(options?: { from?: InjectKey, default?: any } | InjectKey): PropertyDecorator {
+export function Inject(options?: InjectOptions | InjectKey) {
   return createDecorator((componentOptions, key) => {
     if (typeof componentOptions.inject === 'undefined') {
       componentOptions.inject = {}
@@ -28,17 +33,43 @@ export function Inject(options?: { from?: InjectKey, default?: any } | InjectKey
 }
 
 /**
+ * decorator of a reactive inject
+ * @param from key
+ * @return PropertyDecorator
+ */
+export function InjectReactive(options?: InjectOptions | InjectKey) {
+  return createDecorator((componentOptions, key) => {
+    if (typeof componentOptions.inject === 'undefined') {
+      componentOptions.inject = {}
+    }
+    if (!Array.isArray(componentOptions.inject)) {
+      const fromKey = !!options ? (options as any).from || options : key
+      const defaultVal = (!!options && (options as any).default) || undefined
+      if (!componentOptions.computed) componentOptions.computed = {}
+      componentOptions.computed![key] = function() {
+        const obj = (this as any)[reactiveInjectKey]
+        return obj ? obj[fromKey] : defaultVal
+      }
+      componentOptions.inject[reactiveInjectKey] = reactiveInjectKey
+    }
+  })
+}
+
+/**
  * decorator of a provide
  * @param key key
  * @return PropertyDecorator | void
  */
-export function Provide(key?: string | symbol): PropertyDecorator {
+export function Provide(key?: string | symbol) {
   return createDecorator((componentOptions, k) => {
     let provide: any = componentOptions.provide
     if (typeof provide !== 'function' || !provide.managed) {
-      const original = componentOptions.provide
-      provide = componentOptions.provide = function (this: any) {
-        let rv = Object.create((typeof original === 'function' ? original.call(this) : original) || null)
+      const original: any = componentOptions.provide
+      provide = componentOptions.provide = function(this: any) {
+        let rv = Object.create(
+          (typeof original === 'function' ? original.call(this) : original) ||
+            null,
+        )
         for (let i in provide.managed) rv[provide.managed[i]] = this[i]
         return rv
       }
@@ -48,12 +79,57 @@ export function Provide(key?: string | symbol): PropertyDecorator {
   })
 }
 
-/** @see {@link https://github.com/kdujs/kdu-class-component/blob/main/src/reflect.ts} */
-const reflectMetadataIsSupported = typeof Reflect !== 'undefined' && typeof Reflect.getMetadata !== 'undefined'
+/**
+ * decorator of a reactive provide
+ * @param key key
+ * @return PropertyDecorator | void
+ */
+export function ProvideReactive(key?: string | symbol) {
+  return createDecorator((componentOptions, k) => {
+    let provide: any = componentOptions.provide
+    // inject parent reactive services (if any)
+    if (!Array.isArray(componentOptions.inject)) {
+      componentOptions.inject = componentOptions.inject || {};
+      componentOptions.inject[reactiveInjectKey] = { from: reactiveInjectKey, default: {}};
+    }
+    if (typeof provide !== 'function' || !provide.managedReactive) {
+      const original: any = componentOptions.provide
+      provide = componentOptions.provide = function(this: any) {
+        let rv = typeof original === 'function'
+            ? original.call(this)
+            : original
+        rv = Object.create(rv || null)
+        // set reactive services (propagates previous services if necessary)
+        rv[reactiveInjectKey] = this[reactiveInjectKey] || {}
+        for (let i in provide.managedReactive) {
+          rv[provide.managedReactive[i]] = this[i] // Duplicates the behavior of `@Provide`
+          Object.defineProperty(rv[reactiveInjectKey], provide.managedReactive[i], {
+            enumerable: true,
+            get: () => this[i],
+          })
+        }
+        return rv
+      }
+      provide.managedReactive = {}
+    }
+    provide.managedReactive[k] = key || k
+  })
+}
 
-function applyMetadata(options: (PropOptions | Constructor[] | Constructor), target: Kdu, key: string) {
+const reflectMetadataIsSupported =
+  typeof Reflect !== 'undefined' && typeof Reflect.getMetadata !== 'undefined'
+
+function applyMetadata(
+  options: PropOptions | Constructor[] | Constructor,
+  target: Kdu,
+  key: string,
+) {
   if (reflectMetadataIsSupported) {
-    if (!Array.isArray(options) && typeof options !== 'function' && typeof options.type === 'undefined') {
+    if (
+      !Array.isArray(options) &&
+      typeof options !== 'function' &&
+      typeof options.type === 'undefined'
+    ) {
       options.type = Reflect.getMetadata('design:type', target, key)
     }
   }
@@ -65,11 +141,16 @@ function applyMetadata(options: (PropOptions | Constructor[] | Constructor), tar
  * @param options options
  * @return PropertyDecorator
  */
-export function Model(event?: string, options: (PropOptions | Constructor[] | Constructor) = {}): PropertyDecorator {
+export function Model(
+  event?: string,
+  options: PropOptions | Constructor[] | Constructor = {},
+) {
   return (target: Kdu, key: string) => {
     applyMetadata(options, target, key)
     createDecorator((componentOptions, k) => {
-      (componentOptions.props || (componentOptions.props = {}) as any)[k] = options
+      ;(componentOptions.props || ((componentOptions.props = {}) as any))[
+        k
+      ] = options
       componentOptions.model = { prop: k, event: event || k }
     })(target, key)
   }
@@ -80,11 +161,43 @@ export function Model(event?: string, options: (PropOptions | Constructor[] | Co
  * @param  options the options for the prop
  * @return PropertyDecorator | void
  */
-export function Prop(options: (PropOptions | Constructor[] | Constructor) = {}): PropertyDecorator {
+export function Prop(options: PropOptions | Constructor[] | Constructor = {}) {
   return (target: Kdu, key: string) => {
     applyMetadata(options, target, key)
     createDecorator((componentOptions, k) => {
-      (componentOptions.props || (componentOptions.props = {}) as any)[k] = options
+      ;(componentOptions.props || ((componentOptions.props = {}) as any))[
+        k
+      ] = options
+    })(target, key)
+  }
+}
+
+/**
+ * decorator of a synced prop
+ * @param propName the name to interface with from outside, must be different from decorated property
+ * @param options the options for the synced prop
+ * @return PropertyDecorator | void
+ */
+export function PropSync(
+  propName: string,
+  options: PropOptions | Constructor[] | Constructor = {},
+): PropertyDecorator {
+  // @ts-ignore
+  return (target: Kdu, key: string) => {
+    applyMetadata(options, target, key)
+    createDecorator((componentOptions, k) => {
+      ;(componentOptions.props || (componentOptions.props = {} as any))[
+        propName
+      ] = options
+      ;(componentOptions.computed || (componentOptions.computed = {}))[k] = {
+        get() {
+          return (this as any)[propName]
+        },
+        set(value) {
+          // @ts-ignore
+          this.$emit(`update:${propName}`, value)
+        },
+      }
     })(target, key)
   }
 }
@@ -95,7 +208,7 @@ export function Prop(options: (PropOptions | Constructor[] | Constructor) = {}):
  * @param  WatchOption
  * @return MethodDecorator
  */
-export function Watch(path: string, options: WatchOptions = {}): MethodDecorator {
+export function Watch(path: string, options: WatchOptions = {}) {
   const { deep = false, immediate = false } = options
 
   return createDecorator((componentOptions, handler) => {
@@ -124,8 +237,8 @@ const hyphenate = (str: string) => str.replace(hyphenateRE, '-$1').toLowerCase()
  * @param  event The name of the event
  * @return MethodDecorator
  */
-export function Emit(event?: string): MethodDecorator {
-  return function (_target: Kdu, key: string, descriptor: any) {
+export function Emit(event?: string) {
+  return function(_target: Kdu, key: string, descriptor: any) {
     key = hyphenate(key)
     const original = descriptor.value
     descriptor.value = function emitter(...args: any[]) {
@@ -143,8 +256,26 @@ export function Emit(event?: string): MethodDecorator {
       } else {
         emit(returnValue)
       }
+
+      return returnValue
     }
   }
+}
+
+/**
+ * decorator of a ref prop
+ * @param refKey the ref key defined in template
+ */
+export function Ref(refKey?: string) {
+  return createDecorator((options, key) => {
+    options.computed = options.computed || {}
+    options.computed[key] = {
+      cache: false,
+      get(this: Kdu) {
+        return this.$refs[refKey || key]
+      },
+    }
+  })
 }
 
 function isPromise(obj: any): obj is Promise<any> {
