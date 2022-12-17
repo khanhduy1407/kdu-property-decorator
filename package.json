@@ -1,6 +1,6 @@
 {
   "name": "kdu-property-decorator",
-  "version": "8.2.2",
+  "version": "8.3.0",
   "description": "property decorators for Kdu Component",
   "main": "lib/kdu-property-decorator.umd.js",
   "module": "lib/kdu-property-decorator.js",
