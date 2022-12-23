@@ -19,6 +19,7 @@ There are several decorators and 1 function (Mixin):
 - [`@Prop`](#Prop)
 - [`@PropSync`](#PropSync)
 - [`@Model`](#Model)
+- [`@ModelSync`](#ModelSync)
 - [`@Watch`](#Watch)
 - [`@Provide`](#Provide)
 - [`@Inject`](#Provide)
@@ -26,6 +27,7 @@ There are several decorators and 1 function (Mixin):
 - [`@InjectReactive`](#ProvideReactive)
 - [`@Emit`](#Emit)
 - [`@Ref`](#Ref)
+- [`@KModel`](#KModel)
 - `@Component` (**provided by** `kdu-class-component`)
 - `Mixins` (the helper function named `mixins` **provided by** `kdu-class-component`)
 
@@ -48,15 +50,15 @@ is equivalent to
 export default {
   props: {
     propA: {
-      type: Number
+      type: Number,
     },
     propB: {
-      default: 'default value'
+      default: 'default value',
     },
     propC: {
-      type: [String, Boolean]
-    }
-  }
+      type: [String, Boolean],
+    },
+  },
 }
 ```
 
@@ -66,6 +68,16 @@ export default {
 
 1. Set `emitDecoratorMetadata` to `true`.
 2. Import `reflect-metadata` **before** importing `kdu-property-decorator` (importing `reflect-metadata` is needed just once.)
+
+```ts
+import 'reflect-metadata'
+import { Kdu, Component, Prop } from 'kdu-property-decorator'
+
+@Component
+export default class MyComponent extends Kdu {
+  @Prop() age!: number
+}
+```
 
 ## Each prop's default value need to be defined as same as the example code shown in above.
 
@@ -88,8 +100,8 @@ is equivalent to
 export default {
   props: {
     name: {
-      type: String
-    }
+      type: String,
+    },
   },
   computed: {
     syncedName: {
@@ -98,13 +110,13 @@ export default {
       },
       set(value) {
         this.$emit('update:name', value)
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
-Other than that it works just like [`@Prop`](#Prop) other than it takes the propName as an argument of the decorator, in addition to it creates a computed getter and setter behind the scenes. This way you can interface with the property as it was a regular data property whilst making it as easy as appending the `.sync` modifier in the parent component.
+[`@PropSync`](#PropSync) works like [`@Prop`](#Prop) besides the fact that it takes the propName as an argument of the decorator, and also creates a computed getter and setter behind the scenes. This way you can interface with the property as if it was a regular data property whilst making it as easy as appending the `.sync` modifier in the parent component.
 
 ### <a id="Model"></a> `@Model(event?: string, options: (PropOptions | Constructor[] | Constructor) = {})` decorator
 
@@ -123,17 +135,57 @@ is equivalent to
 export default {
   model: {
     prop: 'checked',
-    event: 'change'
+    event: 'change',
   },
   props: {
     checked: {
-      type: Boolean
-    }
-  }
+      type: Boolean,
+    },
+  },
 }
 ```
 
 `@Model` property can also set `type` property from its type definition via `reflect-metadata` .
+
+### <a id="ModelSync"></a> `@ModelSync(propName: string, event?: string, options: (PropOptions | Constructor[] | Constructor) = {})` decorator
+
+```ts
+import { Kdu, Component, ModelSync } from 'kdu-property-decorator'
+
+@Component
+export default class YourComponent extends Kdu {
+  @ModelSync('checked', 'change', { type: Boolean })
+  readonly checkedValue!: boolean
+}
+```
+
+is equivalent to
+
+```js
+export default {
+  model: {
+    prop: 'checked',
+    event: 'change',
+  },
+  props: {
+    checked: {
+      type: Boolean,
+    },
+  },
+  computed: {
+    checkedValue: {
+      get() {
+        return this.checked
+      },
+      set(value) {
+        this.$emit('change', value)
+      },
+    },
+  },
+}
+```
+
+`@ModelSync` property can also set `type` property from its type definition via `reflect-metadata` .
 
 ### <a id="Watch"></a> `@Watch(path: string, options: WatchOptions = {})` decorator
 
@@ -162,27 +214,27 @@ export default {
       {
         handler: 'onChildChanged',
         immediate: false,
-        deep: false
-      }
+        deep: false,
+      },
     ],
     person: [
       {
         handler: 'onPersonChanged1',
         immediate: true,
-        deep: true
+        deep: true,
       },
       {
         handler: 'onPersonChanged2',
         immediate: false,
-        deep: false
-      }
-    ]
+        deep: false,
+      },
+    ],
   },
   methods: {
     onChildChanged(val, oldVal) {},
     onPersonChanged1(val, oldVal) {},
-    onPersonChanged2(val, oldVal) {}
-  }
+    onPersonChanged2(val, oldVal) {},
+  },
 }
 ```
 
@@ -215,20 +267,20 @@ export const MyComponent = Kdu.extend({
     foo: 'foo',
     bar: 'bar',
     optional: { from: 'optional', default: 'default' },
-    [symbol]: symbol
+    baz: symbol,
   },
   data() {
     return {
       foo: 'foo',
-      baz: 'bar'
+      baz: 'bar',
     }
   },
   provide() {
     return {
       foo: this.foo,
-      bar: this.baz
+      bar: this.baz,
     }
-  }
+  },
 })
 ```
 
@@ -286,7 +338,7 @@ export default class YourComponent extends Kdu {
 
   @Emit()
   promise() {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       setTimeout(() => {
         resolve(20)
       }, 0)
@@ -301,7 +353,7 @@ is equivalent to
 export default {
   data() {
     return {
-      count: 0
+      count: 0,
     }
   },
   methods: {
@@ -320,17 +372,17 @@ export default {
       this.$emit('on-input-change', e.target.value, e)
     },
     promise() {
-      const promise = new Promise(resolve => {
+      const promise = new Promise((resolve) => {
         setTimeout(() => {
           resolve(20)
         }, 0)
       })
 
-      promise.then(value => {
+      promise.then((value) => {
         this.$emit('promise', value)
       })
-    }
-  }
+    },
+  },
 }
 ```
 
@@ -366,5 +418,38 @@ export default {
       }
     }
   }
+}
+```
+
+### <a id="KModel"></a> `@KModel(propsArgs?: PropOptions)` decorator
+
+```ts
+import { Kdu, Component, KModel } from 'kdu-property-decorator'
+
+@Component
+export default class YourComponent extends Kdu {
+  @KModel({ type: String }) name!: string
+}
+```
+
+is equivalent to
+
+```js
+export default {
+  props: {
+    value: {
+      type: String,
+    },
+  },
+  computed: {
+    name: {
+      get() {
+        return this.value
+      },
+      set(value) {
+        this.$emit('input', value)
+      },
+    },
+  },
 }
 ```

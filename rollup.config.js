@@ -1,7 +1,7 @@
 export default {
-  input: 'lib/kdu-property-decorator.js',
+  input: 'lib/index.js',
   output: {
-    file: 'lib/kdu-property-decorator.umd.js',
+    file: 'lib/index.umd.js',
     format: 'umd',
     name: 'KduPropertyDecorator',
     globals: {
